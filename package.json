@@ -1,0 +1,31 @@
+{
+  "name": "osonai",
+  "version": "1.0.0",
+  "description": "AI-powered Instagram post generator with interactive text overlay capabilities",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "keywords": [
+    "ai",
+    "instagram",
+    "post-generator",
+    "openai",
+    "image-generation",
+    "social-media"
+  ],
+  "author": "osonai",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "openai": "^4.20.1",
+    "multer": "^1.4.5-lts.1",
+    "sharp": "^0.32.6"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}
