@@ -115,6 +115,26 @@ class OsonaiApp {
             this.handleImageUpload(e.target.files[0]);
         });
 
+        // Image scaling
+        document.getElementById('imageScale').addEventListener('input', (e) => {
+            this.updateImageScale(e.target.value);
+            document.getElementById('imageScaleValue').textContent = e.target.value + '%';
+        });
+
+        // Image positioning
+        document.querySelectorAll('.position-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.position-btn').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                this.updateImagePosition(e.target.dataset.position);
+            });
+        });
+
+        // Image fit
+        document.getElementById('imageFit').addEventListener('change', (e) => {
+            this.updateImageFit(e.target.value);
+        });
+
         // Enter key in prompt
         document.getElementById('promptInput').addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -390,7 +410,8 @@ class OsonaiApp {
         element.classList.add('active');
         this.selectedTextElement = element;
         
-        // Update style panel with current values
+        // Show and update style panel with current values
+        this.showStylePanel();
         this.updateStylePanel(element);
     }
 
@@ -399,6 +420,7 @@ class OsonaiApp {
             el.classList.remove('active');
         });
         this.selectedTextElement = null;
+        // Keep style panel visible but update it for no selection
     }
 
     updateStylePanel(element) {
@@ -714,6 +736,21 @@ class OsonaiApp {
     showCanvas() {
         document.getElementById('promptSection').style.display = 'none';
         document.getElementById('canvasSection').style.display = 'grid';
+        
+        // Initialize image controls
+        this.initializeImageControls();
+    }
+
+    initializeImageControls() {
+        // Set default image position button as active
+        document.querySelector('[data-position="center"]').classList.add('active');
+        
+        // Set default image fit
+        document.getElementById('imageFit').value = 'cover';
+        
+        // Set default scale
+        document.getElementById('imageScale').value = 100;
+        document.getElementById('imageScaleValue').textContent = '100%';
     }
 
     showLoading(text) {
@@ -972,6 +1009,54 @@ class OsonaiApp {
     hideMeasurementDisplay() {
         const measurementDisplay = document.getElementById('measurementDisplay');
         measurementDisplay.classList.remove('active');
+    }
+
+    showStylePanel() {
+        const sidePanel = document.getElementById('sidePanel');
+        const textStylePanel = document.getElementById('textStylePanel');
+        
+        // Ensure side panel is visible
+        sidePanel.style.display = 'block';
+        textStylePanel.style.display = 'block';
+    }
+
+    updateImageScale(scale) {
+        const img = document.getElementById('backgroundImage');
+        if (img) {
+            const scaleValue = scale / 100;
+            img.style.transform = `scale(${scaleValue})`;
+            img.style.transformOrigin = 'center center';
+        }
+    }
+
+    updateImagePosition(position) {
+        const img = document.getElementById('backgroundImage');
+        if (img) {
+            switch (position) {
+                case 'center':
+                    img.style.objectPosition = 'center center';
+                    break;
+                case 'top':
+                    img.style.objectPosition = 'center top';
+                    break;
+                case 'bottom':
+                    img.style.objectPosition = 'center bottom';
+                    break;
+                case 'left':
+                    img.style.objectPosition = 'left center';
+                    break;
+                case 'right':
+                    img.style.objectPosition = 'right center';
+                    break;
+            }
+        }
+    }
+
+    updateImageFit(fit) {
+        const img = document.getElementById('backgroundImage');
+        if (img) {
+            img.style.objectFit = fit;
+        }
     }
 
     rgbToHex(rgb) {

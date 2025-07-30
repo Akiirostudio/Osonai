@@ -576,11 +576,40 @@ body {
     cursor: pointer;
 }
 
-#fontSizeValue {
+#fontSizeValue,
+#imageScaleValue {
     display: inline-block;
     margin-left: 0.5rem;
     font-size: 0.8rem;
     color: #666;
+}
+
+/* Image Position Controls */
+.image-position-controls {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.25rem;
+    margin-bottom: 0.5rem;
+}
+
+.position-btn {
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    background: white;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: all 0.3s ease;
+}
+
+.position-btn.active {
+    background: #667eea;
+    color: white;
+    border-color: #667eea;
+}
+
+.position-btn:hover:not(.active) {
+    background: rgba(102, 126, 234, 0.1);
 }
 
 /* Alignment Buttons */

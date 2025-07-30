@@ -173,6 +173,33 @@
                     <!-- Image Controls -->
                     <div class="panel-section" id="imagePanel">
                         <h3>Background Image</h3>
+                        
+                        <div class="style-group">
+                            <label>Image Scale</label>
+                            <input type="range" id="imageScale" min="50" max="200" value="100">
+                            <span id="imageScaleValue">100%</span>
+                        </div>
+                        
+                        <div class="style-group">
+                            <label>Image Position</label>
+                            <div class="image-position-controls">
+                                <button class="position-btn" data-position="center">Center</button>
+                                <button class="position-btn" data-position="top">Top</button>
+                                <button class="position-btn" data-position="bottom">Bottom</button>
+                                <button class="position-btn" data-position="left">Left</button>
+                                <button class="position-btn" data-position="right">Right</button>
+                            </div>
+                        </div>
+                        
+                        <div class="style-group">
+                            <label>Image Fit</label>
+                            <select id="imageFit">
+                                <option value="cover">Cover (Fill)</option>
+                                <option value="contain">Contain (Fit)</option>
+                                <option value="fill">Stretch</option>
+                            </select>
+                        </div>
+                        
                         <button class="btn-secondary" id="regenerateImage">
                             <i class="fas fa-sync-alt"></i>
                             Regenerate Image
