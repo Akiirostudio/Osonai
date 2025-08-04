@@ -55,16 +55,19 @@ app.post('/api/generate-image', async (req, res) => {
             size = '1792x1024'; // Landscape
         }
 
-        // Enhance the prompt for better image generation
-        const enhancedPrompt = `${prompt}, high quality, professional photography, Instagram-worthy, vibrant colors, excellent composition`;
+        // Enhance the prompt for highly realistic and accurate image generation
+        const enhancedPrompt = `${prompt}, photorealistic, extremely detailed and accurate representation, precisely matching the described subject matter, realistic lighting and shadows, authentic textures and materials, true-to-life colors and proportions, professional photography quality, crystal clear focus, natural composition, lifelike appearance, accurate environmental details, realistic perspective and depth, high-resolution clarity, genuine authentic look, exactly as described with no creative liberties, no text, no words, no letters, no writing, pure visual content only`;
+
+        console.log('🎨 Generating image with prompt:', enhancedPrompt);
+        console.log('📏 Image size:', size);
 
         const response = await openai.images.generate({
             model: "dall-e-3",
             prompt: enhancedPrompt,
             n: 1,
             size: size,
-            quality: "standard",
-            style: "vivid"
+            quality: "hd",
+            style: "natural"
         });
 
         res.json({
@@ -75,10 +78,21 @@ app.post('/api/generate-image', async (req, res) => {
 
     } catch (error) {
         console.error('Error generating image:', error);
-        res.status(500).json({ 
-            error: 'Failed to generate image',
-            details: error.message 
-        });
+        
+        // Handle content policy violations specifically
+        if (error.code === 'content_policy_violation') {
+            console.log('⚠️ Content policy violation detected. Prompt may need refinement.');
+            res.status(400).json({ 
+                error: 'Content policy violation',
+                message: 'The prompt was rejected by OpenAI\'s safety system. Please try a different topic or rephrase your request.',
+                details: error.message 
+            });
+        } else {
+            res.status(500).json({ 
+                error: 'Failed to generate image',
+                details: error.message 
+            });
+        }
     }
 });
 
@@ -155,17 +169,17 @@ app.post('/api/regenerate-image', async (req, res) => {
             return res.status(400).json({ error: 'Prompt is required' });
         }
 
-        // Add variation to the prompt for different results
+        // Add variation to the prompt for different results with thematic accuracy focus
         const variations = [
-            'different angle',
-            'alternative composition',
-            'different lighting',
-            'unique perspective',
-            'creative interpretation'
+            'different angle, cohesive execution, vibrant colors that match the theme',
+            'alternative composition, rich color palette with sophisticated pop, true to concept',
+            'different lighting, polished and well-executed, dynamic visual appeal',
+            'unique perspective, expertly crafted design, striking color contrast',
+            'creative interpretation, high-quality execution, bold colors that enhance the theme'
         ];
         
         const randomVariation = variations[Math.floor(Math.random() * variations.length)];
-        const variedPrompt = `${prompt}, ${randomVariation}`;
+        const variedPrompt = `${prompt}, ${randomVariation}, accurate to theme and concept, expertly crafted image, sharp details, Instagram-worthy, visually striking, perfectly matches the requested theme, no text, no words, no letters, no writing, pure visual content only`;
 
         // Determine image size based on aspect ratio
         let size = '1024x1024';
@@ -180,8 +194,8 @@ app.post('/api/regenerate-image', async (req, res) => {
             prompt: variedPrompt,
             n: 1,
             size: size,
-            quality: "standard",
-            style: "vivid"
+            quality: "hd",
+            style: "natural"
         });
 
         res.json({
@@ -206,6 +220,49 @@ app.get('/api/health', (req, res) => {
         service: 'osonai',
         timestamp: new Date().toISOString() 
     });
+});
+
+// Image proxy endpoint to avoid CORS tainted canvas issues
+app.get('/api/proxy-image', async (req, res) => {
+    try {
+        const { url } = req.query;
+        
+        if (!url) {
+            return res.status(400).json({ error: 'URL parameter is required' });
+        }
+        
+        console.log('Proxying image:', url);
+        
+        // Fetch the image from the external URL
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+            throw new Error(`Failed to fetch image: ${response.status}`);
+        }
+        
+        // Get the image data
+        const imageBuffer = await response.arrayBuffer();
+        const contentType = response.headers.get('content-type') || 'image/jpeg';
+        
+        // Set CORS headers to allow canvas export
+        res.set({
+            'Content-Type': contentType,
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET',
+            'Access-Control-Allow-Headers': 'Content-Type',
+            'Cache-Control': 'public, max-age=3600' // Cache for 1 hour
+        });
+        
+        // Send the image data
+        res.send(Buffer.from(imageBuffer));
+        
+    } catch (error) {
+        console.error('Error proxying image:', error);
+        res.status(500).json({ 
+            error: 'Failed to proxy image',
+            details: error.message 
+        });
+    }
 });
 
 // Error handling middleware

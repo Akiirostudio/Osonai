@@ -29,6 +29,11 @@ class OsonaiApp {
     }
 
     bindEvents() {
+        // New Post button
+        document.getElementById('newPostBtn').addEventListener('click', () => {
+            this.startNewPost();
+        });
+
         // Generate button
         document.getElementById('generateBtn').addEventListener('click', () => {
             this.generatePost();
@@ -512,6 +517,50 @@ class OsonaiApp {
         this.currentPost.aspectRatio = ratio;
     }
 
+    startNewPost() {
+        // Reset the current post state
+        this.currentPost = {
+            prompt: '',
+            image: null,
+            title: 'Your Title Here',
+            subtitle: 'Your subtitle here',
+            caption: '',
+            hashtags: [],
+            aspectRatio: '1:1'
+        };
+        
+        // Clear the prompt input
+        document.getElementById('promptInput').value = '';
+        
+        // Hide the canvas section and show the prompt section
+        document.getElementById('canvasSection').style.display = 'none';
+        document.getElementById('promptSection').style.display = 'flex';
+        
+        // Clear any existing canvas content
+        const canvas = document.getElementById('canvas');
+        const background = document.getElementById('canvasBackground');
+        const textOverlays = document.getElementById('textOverlays');
+        
+        // Reset background
+        if (background) {
+            background.style.backgroundImage = '';
+            background.style.backgroundColor = '#f0f0f0';
+        }
+        
+        // Clear all text overlays
+        if (textOverlays) {
+            textOverlays.innerHTML = '';
+        }
+        
+        // Reset selected text element
+        this.selectedTextElement = null;
+        
+        // Focus on the prompt input
+        document.getElementById('promptInput').focus();
+        
+        console.log('Started new post - application reset');
+    }
+
     async generatePost() {
         const prompt = document.getElementById('promptInput').value.trim();
         if (!prompt) {
@@ -582,14 +631,23 @@ class OsonaiApp {
             }
 
             const img = document.getElementById('backgroundImage');
-            img.src = data.imageUrl;
-            this.currentPost.image = data.imageUrl;
+            // Use proxy endpoint to avoid CORS tainted canvas issues
+            const proxiedUrl = `/api/proxy-image?url=${encodeURIComponent(data.imageUrl)}`;
+            img.src = proxiedUrl;
+            this.currentPost.image = data.imageUrl; // Store original URL for reference
+            this.currentPost.proxiedImage = proxiedUrl; // Store proxied URL for export
             
             this.hideLoading();
         } catch (error) {
             console.error('Error regenerating image:', error);
             this.hideLoading();
-            alert('Error regenerating image. Please try again.');
+            
+            // Check if it's a content policy violation
+            if (error.message && error.message.includes('content policy')) {
+                alert('⚠️ Content Policy Violation\n\nYour prompt was rejected by OpenAI\'s safety system. Please try:\n• A different topic\n• More general terms\n• Avoiding potentially sensitive content');
+            } else {
+                alert('Error regenerating image. Please try again.');
+            }
         }
     }
 
@@ -613,16 +671,27 @@ class OsonaiApp {
             }
 
             const img = document.getElementById('backgroundImage');
-            img.src = data.imageUrl;
-            this.currentPost.image = data.imageUrl;
+            // Use proxy endpoint to avoid CORS tainted canvas issues
+            const proxiedUrl = `/api/proxy-image?url=${encodeURIComponent(data.imageUrl)}`;
+            img.src = proxiedUrl;
+            this.currentPost.image = data.imageUrl; // Store original URL for reference
+            this.currentPost.proxiedImage = proxiedUrl; // Store proxied URL for export
             
         } catch (error) {
             console.error('Error generating image:', error);
+            
+            // Check if it's a content policy violation
+            if (error.message && error.message.includes('content policy')) {
+                alert('⚠️ Content Policy Violation\n\nYour prompt was rejected by OpenAI\'s safety system. Please try:\n• A different topic\n• More general terms\n• Avoiding potentially sensitive content\n\nUsing a placeholder image instead.');
+            }
+            
             // Fallback to placeholder if API fails
             const imageUrl = `https://picsum.photos/800/800?random=${Date.now()}`;
+            const proxiedUrl = `/api/proxy-image?url=${encodeURIComponent(imageUrl)}`;
             const img = document.getElementById('backgroundImage');
-            img.src = imageUrl;
-            this.currentPost.image = imageUrl;
+            img.src = proxiedUrl;
+            this.currentPost.image = imageUrl; // Store original URL for reference
+            this.currentPost.proxiedImage = proxiedUrl; // Store proxied URL for export
             throw error;
         }
     }
@@ -785,16 +854,256 @@ class OsonaiApp {
 
     async exportAsImage(format) {
         try {
-            const canvas = await this.createExportCanvas();
-            const link = document.createElement('a');
-            link.download = `windsurf-post.${format}`;
-            link.href = canvas.toDataURL(`image/${format}`, 0.9);
-            link.click();
+            console.log(`Starting ${format.toUpperCase()} export using DOM capture...`);
             
+            // Debug: Check the state of all relevant elements
+            this.debugExportState();
+            
+            // Get the canvas element that contains the complete post
+            const canvasElement = document.getElementById('canvas');
+            if (!canvasElement) {
+                throw new Error('Canvas element not found');
+            }
+            
+            // Use a more direct approach - capture the canvas element as it appears
+            const exportCanvas = await this.captureCanvasElement(canvasElement);
+            
+            if (!exportCanvas) {
+                throw new Error('Failed to capture canvas element');
+            }
+            
+            // Create download link
+            const link = document.createElement('a');
+            link.download = `osonai-post.${format}`;
+            
+            // Handle different formats
+            const mimeType = format === 'png' ? 'image/png' : 'image/jpeg';
+            const quality = format === 'png' ? 1.0 : 0.9;
+            
+            // Generate data URL and download
+            link.href = exportCanvas.toDataURL(mimeType, quality);
+            
+            if (!link.href || link.href === 'data:,') {
+                throw new Error('Failed to generate image data');
+            }
+            
+            // Trigger download
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            console.log(`${format.toUpperCase()} export successful`);
             this.hideExportModal();
+            
         } catch (error) {
             console.error('Error exporting image:', error);
-            alert('Error exporting image. Please try again.');
+            alert(`Error exporting ${format.toUpperCase()}: ${error.message}\n\nTip: Try refreshing the page and generating a new image if the problem persists.`);
+        }
+    }
+
+    debugExportState() {
+        console.log('=== EXPORT DEBUG STATE ===');
+        
+        // Check canvas element
+        const canvas = document.getElementById('canvas');
+        console.log('Canvas element:', canvas);
+        if (canvas) {
+            const canvasRect = canvas.getBoundingClientRect();
+            console.log('Canvas dimensions:', canvasRect.width, 'x', canvasRect.height);
+            console.log('Canvas display style:', window.getComputedStyle(canvas).display);
+        }
+        
+        // Check canvas background
+        const canvasBackground = document.getElementById('canvasBackground');
+        console.log('Canvas background element:', canvasBackground);
+        if (canvasBackground) {
+            const bgStyle = window.getComputedStyle(canvasBackground);
+            console.log('Canvas background CSS background-image:', bgStyle.backgroundImage);
+            console.log('Canvas background CSS background-size:', bgStyle.backgroundSize);
+        }
+        
+        // Check background image element
+        const backgroundImg = document.getElementById('backgroundImage');
+        console.log('Background image element:', backgroundImg);
+        if (backgroundImg) {
+            console.log('Background image src:', backgroundImg.src);
+            console.log('Background image complete:', backgroundImg.complete);
+            console.log('Background image naturalWidth:', backgroundImg.naturalWidth);
+            console.log('Background image naturalHeight:', backgroundImg.naturalHeight);
+            console.log('Background image width:', backgroundImg.width);
+            console.log('Background image height:', backgroundImg.height);
+            console.log('Background image display style:', window.getComputedStyle(backgroundImg).display);
+            console.log('Background image visibility:', window.getComputedStyle(backgroundImg).visibility);
+            console.log('Background image opacity:', window.getComputedStyle(backgroundImg).opacity);
+        }
+        
+        // Check current post state
+        console.log('Current post image URL:', this.currentPost.image);
+        console.log('Current post aspect ratio:', this.currentPost.aspectRatio);
+        
+        // Check text overlays
+        const textOverlays = document.querySelectorAll('.text-overlay');
+        console.log('Number of text overlays:', textOverlays.length);
+        
+        console.log('=== END EXPORT DEBUG ===');
+    }
+
+    async captureCanvasElement(canvasElement) {
+        try {
+            console.log('Capturing canvas element as it appears on screen...');
+            
+            // Get the current dimensions and position
+            const rect = canvasElement.getBoundingClientRect();
+            console.log('Canvas element dimensions:', rect.width, 'x', rect.height);
+            
+            // Create a new canvas with high resolution
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Set canvas dimensions based on aspect ratio for high quality export
+            const aspectRatio = this.currentPost.aspectRatio;
+            switch (aspectRatio) {
+                case '4:5':
+                    canvas.width = 1080;
+                    canvas.height = 1350;
+                    break;
+                case '16:9':
+                    canvas.width = 1080;
+                    canvas.height = 608;
+                    break;
+                default: // 1:1
+                    canvas.width = 1080;
+                    canvas.height = 1080;
+                    break;
+            }
+            
+            console.log('Export canvas dimensions:', canvas.width, 'x', canvas.height);
+            
+            // Fill with white background
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Calculate scaling factors
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            
+            // Try to get the background image first
+            const backgroundImg = document.getElementById('backgroundImage');
+            if (backgroundImg && backgroundImg.complete && backgroundImg.src) {
+                console.log('Drawing background image from img element...');
+                try {
+                    ctx.drawImage(backgroundImg, 0, 0, canvas.width, canvas.height);
+                    console.log('Background image drawn successfully');
+                } catch (bgError) {
+                    console.warn('Failed to draw background image:', bgError);
+                }
+            } else {
+                console.log('No background image found in img element, checking CSS...');
+                
+                // Check for CSS background image
+                const canvasBackground = document.getElementById('canvasBackground');
+                if (canvasBackground) {
+                    const computedStyle = window.getComputedStyle(canvasBackground);
+                    const backgroundImage = computedStyle.backgroundImage;
+                    
+                    if (backgroundImage && backgroundImage !== 'none') {
+                        const urlMatch = backgroundImage.match(/url\(["']?([^"'\)]+)["']?\)/);
+                        if (urlMatch && urlMatch[1]) {
+                            console.log('Found CSS background image, loading...');
+                            await new Promise((resolve) => {
+                                const img = new Image();
+                                img.crossOrigin = 'anonymous';
+                                img.onload = () => {
+                                    console.log('CSS background image loaded, drawing...');
+                                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                                    resolve();
+                                };
+                                img.onerror = () => {
+                                    console.warn('Failed to load CSS background image');
+                                    resolve();
+                                };
+                                img.src = urlMatch[1];
+                            });
+                        }
+                    }
+                }
+            }
+            
+            // Draw all text overlays
+            const textOverlays = canvasElement.querySelectorAll('.text-overlay');
+            console.log('Found', textOverlays.length, 'text overlays to draw');
+            
+            for (const overlay of textOverlays) {
+                if (overlay.style.display === 'none') continue;
+                
+                const textContent = overlay.querySelector('.text-content');
+                if (!textContent || !textContent.textContent.trim()) continue;
+                
+                // Get overlay position relative to canvas
+                const overlayRect = overlay.getBoundingClientRect();
+                const canvasRect = canvasElement.getBoundingClientRect();
+                
+                // Calculate position on export canvas
+                const x = (overlayRect.left - canvasRect.left) * scaleX;
+                const y = (overlayRect.top - canvasRect.top) * scaleY;
+                const width = overlayRect.width * scaleX;
+                const height = overlayRect.height * scaleY;
+                
+                // Get computed styles
+                const style = window.getComputedStyle(textContent);
+                const fontSize = parseFloat(style.fontSize) * Math.min(scaleX, scaleY);
+                const fontFamily = style.fontFamily;
+                const color = style.color;
+                const textAlign = style.textAlign || 'left';
+                const fontWeight = style.fontWeight;
+                const fontStyle = style.fontStyle;
+                
+                // Set font properties
+                ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamily}`;
+                ctx.fillStyle = color;
+                ctx.textAlign = textAlign;
+                ctx.textBaseline = 'top';
+                
+                // Add text shadow if present
+                const textShadow = style.textShadow;
+                if (textShadow && textShadow !== 'none') {
+                    ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+                    ctx.shadowBlur = 4 * Math.min(scaleX, scaleY);
+                    ctx.shadowOffsetX = 2 * scaleX;
+                    ctx.shadowOffsetY = 2 * scaleY;
+                }
+                
+                // Handle text alignment positioning
+                let textX = x;
+                if (textAlign === 'center') {
+                    textX = x + width / 2;
+                } else if (textAlign === 'right') {
+                    textX = x + width;
+                }
+                
+                // Draw the text
+                const text = textContent.textContent;
+                const lines = text.split('\n');
+                const lineHeight = fontSize * 1.2;
+                
+                for (let i = 0; i < lines.length; i++) {
+                    const lineY = y + (i * lineHeight);
+                    ctx.fillText(lines[i], textX, lineY);
+                }
+                
+                // Reset shadow
+                ctx.shadowColor = 'transparent';
+                ctx.shadowBlur = 0;
+                ctx.shadowOffsetX = 0;
+                ctx.shadowOffsetY = 0;
+            }
+            
+            console.log('Canvas capture completed successfully');
+            return canvas;
+            
+        } catch (error) {
+            console.error('Error capturing canvas element:', error);
+            return null;
         }
     }
 
@@ -820,14 +1129,31 @@ class OsonaiApp {
                 break;
         }
         
-        // Draw background image
+        // Draw background image with CORS handling
         const img = document.getElementById('backgroundImage');
         if (img.src) {
-            await new Promise((resolve) => {
+            await new Promise((resolve, reject) => {
                 const tempImg = new Image();
+                tempImg.crossOrigin = 'anonymous';
                 tempImg.onload = () => {
-                    ctx.drawImage(tempImg, 0, 0, canvas.width, canvas.height);
-                    resolve();
+                    try {
+                        ctx.drawImage(tempImg, 0, 0, canvas.width, canvas.height);
+                        resolve();
+                    } catch (error) {
+                        console.warn('CORS issue with image, using fallback method:', error);
+                        // Fallback: draw the existing image element directly
+                        try {
+                            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                            resolve();
+                        } catch (fallbackError) {
+                            console.error('Failed to draw image:', fallbackError);
+                            resolve(); // Continue without background
+                        }
+                    }
+                };
+                tempImg.onerror = () => {
+                    console.warn('Failed to load image for export, continuing without background');
+                    resolve(); // Continue without background
                 };
                 tempImg.src = img.src;
             });
@@ -884,6 +1210,82 @@ class OsonaiApp {
         ctx.shadowBlur = 0;
         ctx.shadowOffsetX = 0;
         ctx.shadowOffsetY = 0;
+    }
+
+    async drawTextOverlaysOnCanvas(ctx, canvasWidth, canvasHeight, sourceCanvasElement) {
+        // Get scaling factors
+        const sourceRect = sourceCanvasElement.getBoundingClientRect();
+        const scaleX = canvasWidth / sourceRect.width;
+        const scaleY = canvasHeight / sourceRect.height;
+        
+        // Get all text overlay elements
+        const textOverlays = document.querySelectorAll('.text-overlay');
+        
+        for (const overlay of textOverlays) {
+            if (overlay.style.display === 'none') continue;
+            
+            // Get the text content element
+            const textContent = overlay.querySelector('.text-content');
+            if (!textContent || !textContent.textContent.trim()) continue;
+            
+            // Get overlay position relative to canvas
+            const overlayRect = overlay.getBoundingClientRect();
+            const canvasRect = sourceCanvasElement.getBoundingClientRect();
+            
+            // Calculate position on export canvas
+            const x = (overlayRect.left - canvasRect.left) * scaleX;
+            const y = (overlayRect.top - canvasRect.top) * scaleY;
+            const width = overlayRect.width * scaleX;
+            const height = overlayRect.height * scaleY;
+            
+            // Get computed styles
+            const style = window.getComputedStyle(textContent);
+            const fontSize = parseFloat(style.fontSize) * Math.min(scaleX, scaleY);
+            const fontFamily = style.fontFamily;
+            const color = style.color;
+            const textAlign = style.textAlign || 'left';
+            const fontWeight = style.fontWeight;
+            const fontStyle = style.fontStyle;
+            
+            // Set font properties
+            ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamily}`;
+            ctx.fillStyle = color;
+            ctx.textAlign = textAlign;
+            ctx.textBaseline = 'top';
+            
+            // Add text shadow if present
+            const textShadow = style.textShadow;
+            if (textShadow && textShadow !== 'none') {
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+                ctx.shadowBlur = 4 * Math.min(scaleX, scaleY);
+                ctx.shadowOffsetX = 2 * scaleX;
+                ctx.shadowOffsetY = 2 * scaleY;
+            }
+            
+            // Handle text alignment positioning
+            let textX = x;
+            if (textAlign === 'center') {
+                textX = x + width / 2;
+            } else if (textAlign === 'right') {
+                textX = x + width;
+            }
+            
+            // Draw the text
+            const text = textContent.textContent;
+            const lines = text.split('\n');
+            const lineHeight = fontSize * 1.2;
+            
+            for (let i = 0; i < lines.length; i++) {
+                const lineY = y + (i * lineHeight);
+                ctx.fillText(lines[i], textX, lineY);
+            }
+            
+            // Reset shadow
+            ctx.shadowColor = 'transparent';
+            ctx.shadowBlur = 0;
+            ctx.shadowOffsetX = 0;
+            ctx.shadowOffsetY = 0;
+        }
     }
 
     copyCaption() {
