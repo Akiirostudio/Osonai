@@ -110,7 +110,7 @@ app.post('/api/generate-text', async (req, res) => {
 Return your response as a JSON object with the following structure:
 {
     "title": "A catchy title (3-6 words max, bold and engaging)",
-    "subtitle": "An optional subtitle (up to 10 words, complements the title)",
+    "subtitle": "A longer, contextual subtitle (15-25 words that adds depth, context, and meaning to the title - should provide additional insight or perspective)",
     "caption": "Instagram caption (2-3 sentences max, engaging and authentic with relevant emojis)",
     "hashtags": ["array", "of", "15-25", "relevant", "hashtags", "without", "spaces"]
 }

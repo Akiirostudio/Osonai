@@ -21,6 +21,10 @@
                     <i class="fas fa-plus"></i>
                     New Post
                 </button>
+                <button class="btn-secondary" id="uploadBtn">
+                    <i class="fas fa-upload"></i>
+                    Upload Image
+                </button>
                 <button class="btn-secondary" id="regenerateBtn">
                     <i class="fas fa-sync-alt"></i>
                     Regenerate
@@ -247,6 +251,33 @@
                     <div class="export-preview" id="exportPreview">
                         <!-- Preview will be generated here -->
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden file input for image uploads -->
+    <input type="file" id="imageUpload" accept="image/*" style="display: none;">
+
+    <!-- Upload Modal -->
+    <div class="modal-overlay" id="uploadModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Upload Your Image</h3>
+                <span class="close" id="closeUploadModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-placeholder">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <p>Click to upload or drag and drop your image here</p>
+                        <p class="upload-hint">Supports JPG, PNG, GIF (Max 10MB)</p>
+                    </div>
+                    <img id="uploadPreview" class="upload-preview" style="display: none;">
+                </div>
+                <div class="upload-actions">
+                    <button class="btn-secondary" id="cancelUpload">Cancel</button>
+                    <button class="btn-primary" id="useUploadedImage" disabled>Use This Image</button>
                 </div>
             </div>
         </div>

@@ -34,6 +34,17 @@ class OsonaiApp {
             this.startNewPost();
         });
 
+        // Upload button
+        document.getElementById('uploadBtn').addEventListener('click', () => {
+            console.log('🔍 Upload button clicked');
+            try {
+                this.showUploadModal();
+                console.log('✅ showUploadModal called successfully');
+            } catch (error) {
+                console.error('❌ Error in showUploadModal:', error);
+            }
+        });
+
         // Generate button
         document.getElementById('generateBtn').addEventListener('click', () => {
             this.generatePost();
@@ -793,11 +804,13 @@ class OsonaiApp {
             return;
         }
 
+        // This function is deprecated - image uploads now use createImageOverlay
+        console.log('⚠️ handleImageUpload called - this should use createImageOverlay instead');
+        
         const reader = new FileReader();
         reader.onload = (e) => {
-            const img = document.getElementById('backgroundImage');
-            img.src = e.target.result;
-            this.currentPost.image = e.target.result;
+            // Create overlay instead of replacing background
+            this.createImageOverlay(e.target.result);
         };
         reader.readAsDataURL(file);
     }
@@ -1096,6 +1109,35 @@ class OsonaiApp {
                 ctx.shadowBlur = 0;
                 ctx.shadowOffsetX = 0;
                 ctx.shadowOffsetY = 0;
+            }
+            
+            // Draw all image overlays
+            const imageOverlays = canvasElement.querySelectorAll('.image-overlay');
+            console.log('Found', imageOverlays.length, 'image overlays to draw');
+            
+            for (const overlay of imageOverlays) {
+                if (overlay.style.display === 'none') continue;
+                
+                const overlayImg = overlay.querySelector('img');
+                if (!overlayImg || !overlayImg.complete || !overlayImg.src) continue;
+                
+                // Get overlay position relative to canvas
+                const overlayRect = overlay.getBoundingClientRect();
+                const canvasRect = canvasElement.getBoundingClientRect();
+                
+                // Calculate position on export canvas
+                const x = (overlayRect.left - canvasRect.left) * scaleX;
+                const y = (overlayRect.top - canvasRect.top) * scaleY;
+                const width = overlayRect.width * scaleX;
+                const height = overlayRect.height * scaleY;
+                
+                try {
+                    // Draw the image overlay
+                    ctx.drawImage(overlayImg, x, y, width, height);
+                    console.log('Image overlay drawn successfully');
+                } catch (overlayError) {
+                    console.warn('Failed to draw image overlay:', overlayError);
+                }
             }
             
             console.log('Canvas capture completed successfully');
@@ -1473,6 +1515,319 @@ class OsonaiApp {
             const hex = x.toString(16);
             return hex.length === 1 ? '0' + hex : hex;
         }).join('');
+    }
+
+    // Upload Modal Functions
+    showUploadModal() {
+        console.log('🔍 showUploadModal called');
+        const modal = document.getElementById('uploadModal');
+        console.log('📋 Modal element found:', modal);
+        
+        if (!modal) {
+            console.error('❌ Upload modal element not found!');
+            alert('Upload modal not found. Please refresh the page.');
+            return;
+        }
+        
+        modal.classList.add('active');
+        console.log('✅ Modal active class added');
+        this.initializeUploadModal();
+    }
+
+    initializeUploadModal() {
+        const modal = document.getElementById('uploadModal');
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('imageUpload');
+        const uploadPreview = document.getElementById('uploadPreview');
+        const useButton = document.getElementById('useUploadedImage');
+        const cancelButton = document.getElementById('cancelUpload');
+        const closeButton = document.getElementById('closeUploadModal');
+        const placeholder = uploadArea.querySelector('.upload-placeholder');
+
+        // Reset modal state
+        uploadPreview.style.display = 'none';
+        placeholder.style.display = 'block';
+        useButton.disabled = true;
+        this.uploadedImageData = null;
+
+        // Click to upload
+        uploadArea.onclick = () => fileInput.click();
+
+        // File input change
+        fileInput.onchange = (e) => this.handleFileSelect(e.target.files[0]);
+
+        // Drag and drop
+        uploadArea.ondragover = (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        };
+
+        uploadArea.ondragleave = () => {
+            uploadArea.classList.remove('dragover');
+        };
+
+        uploadArea.ondrop = (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                this.handleFileSelect(files[0]);
+            }
+        };
+
+        // Modal controls
+        useButton.onclick = () => this.useUploadedImage();
+        cancelButton.onclick = () => this.hideUploadModal();
+        closeButton.onclick = () => this.hideUploadModal();
+
+        // Close on outside click
+        modal.onclick = (e) => {
+            if (e.target === modal) {
+                this.hideUploadModal();
+            }
+        };
+    }
+
+    handleFileSelect(file) {
+        if (!file) return;
+
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+            alert('Please select an image file (JPG, PNG, GIF)');
+            return;
+        }
+
+        // Validate file size (10MB max)
+        if (file.size > 10 * 1024 * 1024) {
+            alert('File size must be less than 10MB');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const uploadPreview = document.getElementById('uploadPreview');
+            const placeholder = document.getElementById('uploadArea').querySelector('.upload-placeholder');
+            const useButton = document.getElementById('useUploadedImage');
+
+            // Show preview
+            uploadPreview.src = e.target.result;
+            uploadPreview.style.display = 'block';
+            placeholder.style.display = 'none';
+            useButton.disabled = false;
+
+            // Store image data
+            this.uploadedImageData = e.target.result;
+        };
+
+        reader.readAsDataURL(file);
+    }
+
+    useUploadedImage() {
+        if (!this.uploadedImageData) return;
+
+        console.log('🔍 useUploadedImage called with data:', this.uploadedImageData ? 'Image data exists' : 'No image data');
+        
+        // Create an image overlay layer instead of replacing background
+        console.log('🔍 About to call createImageOverlay...');
+        this.createImageOverlay(this.uploadedImageData);
+        console.log('🔍 createImageOverlay call completed');
+
+        // Hide upload modal
+        this.hideUploadModal();
+
+        console.log('✅ User uploaded image added as overlay layer');
+    }
+
+    createImageOverlay(imageSrc) {
+        console.log('🖼️ createImageOverlay called with imageSrc:', imageSrc ? 'Image source provided' : 'No image source');
+        
+        const canvas = document.getElementById('canvas');
+        console.log('📋 Canvas element found:', canvas);
+        
+        if (!canvas) {
+            console.error('❌ Canvas element not found! Cannot create overlay.');
+            return;
+        }
+        
+        const overlayId = 'imageOverlay' + Date.now();
+        console.log('🏷️ Creating overlay with ID:', overlayId);
+        
+        // Create image overlay element
+        const overlay = document.createElement('div');
+        overlay.className = 'image-overlay';
+        overlay.id = overlayId;
+        console.log('📦 Overlay div created with class:', overlay.className);
+        
+        // Create the image element
+        const img = document.createElement('img');
+        img.src = imageSrc;
+        img.style.width = '100%';
+        img.style.height = '100%';
+        img.style.objectFit = 'contain';
+        img.style.pointerEvents = 'none'; // Prevent image from interfering with drag
+        
+        overlay.appendChild(img);
+        
+        // Set initial position and size (small overlay like text elements)
+        overlay.style.position = 'absolute';
+        overlay.style.left = '50px';  // Fixed pixel position from left
+        overlay.style.top = '50px';   // Fixed pixel position from top
+        overlay.style.width = '100px';  // Small initial size
+        overlay.style.height = '100px'; // Small initial size
+        overlay.style.cursor = 'move';
+        overlay.style.border = '2px dashed transparent';
+        overlay.style.borderRadius = '8px';
+        overlay.style.transition = 'all 0.3s ease';
+        overlay.style.zIndex = '200';  // Higher z-index to be above text overlays
+        overlay.style.maxWidth = '300px';  // Prevent it from getting too large
+        overlay.style.maxHeight = '300px'; // Prevent it from getting too large
+        
+        // Enable CSS resize (browser native)
+        overlay.style.resize = 'both';
+        overlay.style.overflow = 'hidden';
+        
+        // Add to canvas
+        console.log('📥 Adding overlay to canvas...');
+        canvas.appendChild(overlay);
+        console.log('✅ Overlay added to canvas successfully');
+        
+        // Make it draggable and selectable
+        console.log('🔄 Making overlay draggable and selectable...');
+        this.makeImageOverlayDraggable(overlay);
+        this.makeImageOverlaySelectable(overlay);
+        
+        // Add control buttons
+        console.log('🎮 Adding control buttons...');
+        this.addImageOverlayControls(overlay);
+        
+        console.log('✅ Image overlay created successfully:', overlayId);
+        console.log('📋 Canvas now has', canvas.children.length, 'child elements');
+        
+        // Log all canvas children for debugging
+        console.log('📋 Canvas children:');
+        for (let i = 0; i < canvas.children.length; i++) {
+            const child = canvas.children[i];
+            console.log(`  ${i + 1}. ${child.tagName} - ID: ${child.id} - Class: ${child.className}`);
+        }
+    }
+
+    makeImageOverlayDraggable(overlay) {
+        let isDragging = false;
+        let startX, startY, startLeft, startTop;
+        
+        overlay.addEventListener('mousedown', (e) => {
+            if (e.target.classList.contains('resize-handle') || e.target.classList.contains('control-btn')) {
+                return; // Don't drag when clicking resize handles or control buttons
+            }
+            
+            isDragging = true;
+            overlay.classList.add('dragging');
+            
+            const rect = overlay.getBoundingClientRect();
+            const canvasRect = overlay.parentElement.getBoundingClientRect();
+            
+            startX = e.clientX;
+            startY = e.clientY;
+            startLeft = rect.left - canvasRect.left;
+            startTop = rect.top - canvasRect.top;
+            
+            e.preventDefault();
+        });
+        
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            
+            const deltaX = e.clientX - startX;
+            const deltaY = e.clientY - startY;
+            
+            overlay.style.left = (startLeft + deltaX) + 'px';
+            overlay.style.top = (startTop + deltaY) + 'px';
+        });
+        
+        document.addEventListener('mouseup', () => {
+            if (isDragging) {
+                isDragging = false;
+                overlay.classList.remove('dragging');
+            }
+        });
+    }
+
+    makeImageOverlaySelectable(overlay) {
+        overlay.addEventListener('click', (e) => {
+            if (e.target.classList.contains('resize-handle') || e.target.classList.contains('control-btn')) {
+                return;
+            }
+            
+            // Deselect other overlays
+            document.querySelectorAll('.image-overlay').forEach(el => {
+                el.classList.remove('active');
+            });
+            
+            // Select this overlay
+            overlay.classList.add('active');
+            this.selectedImageOverlay = overlay;
+        });
+        
+        // Show/hide controls on hover
+        overlay.addEventListener('mouseenter', () => {
+            overlay.style.borderColor = '#1E5B8D';
+            const controls = overlay.querySelector('.overlay-controls');
+            if (controls) controls.style.opacity = '1';
+        });
+        
+        overlay.addEventListener('mouseleave', () => {
+            if (!overlay.classList.contains('active')) {
+                overlay.style.borderColor = 'transparent';
+                const controls = overlay.querySelector('.overlay-controls');
+                if (controls) controls.style.opacity = '0';
+            }
+        });
+    }
+
+    addImageOverlayControls(overlay) {
+        const controls = document.createElement('div');
+        controls.className = 'overlay-controls';
+        controls.style.position = 'absolute';
+        controls.style.top = '-40px';
+        controls.style.right = '0';
+        controls.style.display = 'flex';
+        controls.style.gap = '5px';
+        controls.style.opacity = '0';
+        controls.style.transition = 'opacity 0.3s ease';
+        
+        // Delete button
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'control-btn';
+        deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
+        deleteBtn.title = 'Delete overlay';
+        deleteBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            overlay.remove();
+        });
+        
+        // Bring to front button
+        const frontBtn = document.createElement('button');
+        frontBtn.className = 'control-btn';
+        frontBtn.innerHTML = '<i class="fas fa-arrow-up"></i>';
+        frontBtn.title = 'Bring to front';
+        frontBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const currentZ = parseInt(overlay.style.zIndex) || 100;
+            overlay.style.zIndex = currentZ + 10;
+        });
+        
+        controls.appendChild(frontBtn);
+        controls.appendChild(deleteBtn);
+        overlay.appendChild(controls);
+    }
+
+    hideUploadModal() {
+        const modal = document.getElementById('uploadModal');
+        modal.classList.remove('active');
+        
+        // Reset file input
+        document.getElementById('imageUpload').value = '';
+        this.uploadedImageData = null;
     }
 }
 
