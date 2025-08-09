@@ -579,12 +579,11 @@ body {
     border-radius: 8px;
     transition: all 0.3s ease;
     user-select: none;
-    resize: both;
+    /* Use custom resize handles for consistency with text overlays */
+    resize: none;
     overflow: hidden;
     min-width: 50px;
     min-height: 50px;
-    max-width: 300px;
-    max-height: 300px;
     z-index: 200;
     box-sizing: border-box;
 }

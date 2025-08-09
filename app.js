@@ -302,6 +302,7 @@ class OsonaiApp {
 
     startResize(e, element, handle) {
         this.isResizing = true;
+        // Support resizing for both text and image overlays
         this.selectedTextElement = element;
         this.resizeHandle = handle;
         element.classList.add('resizing');
@@ -325,7 +326,10 @@ class OsonaiApp {
         };
         
         e.preventDefault();
-        this.selectTextElement(element);
+        // Only invoke text selection UI for text overlays
+        if (!element.classList.contains('image-overlay')) {
+            this.selectTextElement(element);
+        }
     }
 
     resize(e) {
@@ -339,6 +343,8 @@ class OsonaiApp {
         let newHeight = this.initialSize.height;
         let newLeft = this.initialPosition.x;
         let newTop = this.initialPosition.y;
+        const isImage = this.selectedTextElement.classList.contains('image-overlay');
+        const aspect = this.initialSize.width / Math.max(1, this.initialSize.height);
         
         // Calculate new dimensions based on handle direction
         switch (handleClass) {
@@ -379,8 +385,23 @@ class OsonaiApp {
         }
         
         // Apply minimum constraints
-        newWidth = Math.max(100, newWidth);
-        newHeight = Math.max(40, newHeight);
+        if (isImage) {
+            newWidth = Math.max(50, newWidth);
+            newHeight = Math.max(50, newHeight);
+        } else {
+            newWidth = Math.max(100, newWidth);
+            newHeight = Math.max(40, newHeight);
+        }
+
+        // Optional: hold Shift to maintain aspect ratio for images
+        if (isImage && e.shiftKey) {
+            // Determine which dimension change dominates
+            if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                newHeight = newWidth / aspect;
+            } else {
+                newWidth = newHeight * aspect;
+            }
+        }
         
         // Apply maximum constraints (canvas bounds)
         const canvas = document.getElementById('canvas');
@@ -1679,11 +1700,11 @@ class OsonaiApp {
         overlay.style.borderRadius = '8px';
         overlay.style.transition = 'all 0.3s ease';
         overlay.style.zIndex = '200';  // Higher z-index to be above text overlays
-        overlay.style.maxWidth = '300px';  // Prevent it from getting too large
-        overlay.style.maxHeight = '300px'; // Prevent it from getting too large
+        // Let canvas bounds enforce max; avoid arbitrary small caps
         
         // Enable CSS resize (browser native)
-        overlay.style.resize = 'both';
+        // We'll provide custom handles instead of native resize for consistency
+        overlay.style.resize = 'none';
         overlay.style.overflow = 'hidden';
         
         // Add to canvas
@@ -1695,7 +1716,19 @@ class OsonaiApp {
         console.log('🔄 Making overlay draggable and selectable...');
         this.makeImageOverlayDraggable(overlay);
         this.makeImageOverlaySelectable(overlay);
-        
+
+        // Add resize handles (8 directions like text overlays)
+        const directions = ['nw','n','ne','w','e','sw','s','se'];
+        directions.forEach(dir => {
+            const handle = document.createElement('div');
+            handle.className = `resize-handle ${dir}`;
+            overlay.appendChild(handle);
+            handle.addEventListener('mousedown', (ev) => {
+                ev.stopPropagation();
+                this.startResize(ev, overlay, handle);
+            });
+        });
+
         // Add control buttons
         console.log('🎮 Adding control buttons...');
         this.addImageOverlayControls(overlay);
